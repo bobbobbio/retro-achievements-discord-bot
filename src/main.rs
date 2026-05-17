@@ -33,6 +33,7 @@ async fn read_toml_file<TypeT: DeserializeOwned>(name: &str, path: &Path) -> Res
 
 const RETRO_ACHIEVEMENTS_API_ENDPOINT: &str = "https://retroachievements.org/API";
 const RETRO_ACHIEVEMENTS_MEDIA_URL: &str = "https://media.retroachievements.org";
+const RETRO_ACHIEVEMENTS_WEB_URL: &str = "https://retroachievements.org";
 
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "PascalCase")]
@@ -196,6 +197,7 @@ async fn main() -> Result<()> {
 
     let embeds = serde_json::json! ([
         {
+            "title": &aotw.achievement.title,
             "image": {
                 "url": format!(
                     "{RETRO_ACHIEVEMENTS_MEDIA_URL}{}",
@@ -203,10 +205,12 @@ async fn main() -> Result<()> {
                 )
             },
             "fields": [
-                { "name": &aotw.achievement.title, "value": &aotw.achievement.description },
-            ]
+                { "name": "", "value": &aotw.achievement.description },
+            ],
+            "url": format!("{RETRO_ACHIEVEMENTS_WEB_URL}/achievement/{}", aotw.achievement.id)
         },
         {
+            "title": &aotw.game.title,
             "image": {
                 "url": format!(
                     "{RETRO_ACHIEVEMENTS_MEDIA_URL}{}",
@@ -214,8 +218,9 @@ async fn main() -> Result<()> {
                 )
             },
             "fields": [
-                { "name": &aotw.game.title, "value": &aotw.console.title }
-            ]
+                { "name": "", "value": &aotw.console.title },
+            ],
+            "url": format!("{RETRO_ACHIEVEMENTS_WEB_URL}/game/{}", aotw.game.id)
         },
     ]);
     discord_client
