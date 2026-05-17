@@ -229,7 +229,7 @@ async fn main() -> Result<()> {
     ]);
     let post = format!(
         "**Achievement of the Week for {}**",
-        aotw.start_at.with_timezone(&Local).format("%d/%m/%Y")
+        aotw.start_at.with_timezone(&Local).format("%m/%d/%Y")
     );
     discord_client.post("AotwBot", &post, &embeds).await?;
 
