@@ -32,6 +32,7 @@ async fn read_toml_file<TypeT: DeserializeOwned>(name: &str, path: &Path) -> Res
 }
 
 const RETRO_ACHIEVEMENTS_API_ENDPOINT: &str = "https://retroachievements.org/API";
+const RETRO_ACHIEVEMENTS_MEDIA_URL: &str = "https://media.retroachievements.org";
 
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "PascalCase")]
@@ -50,7 +51,7 @@ struct Achievement {
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "PascalCase")]
 #[allow(dead_code)]
-struct Game {
+struct GameRef {
     #[serde(rename = "ID")]
     id: u32,
     title: String,
@@ -59,7 +60,20 @@ struct Game {
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "PascalCase")]
 #[allow(dead_code)]
-struct Console {
+struct Game {
+    title: String,
+    game_title: String,
+    #[serde(rename = "ConsoleID")]
+    console_id: u32,
+    console_name: String,
+    game_icon: String,
+    image_icon: String,
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "PascalCase")]
+#[allow(dead_code)]
+struct ConsoleRef {
     #[serde(rename = "ID")]
     id: u32,
     title: String,
@@ -69,8 +83,8 @@ struct Console {
 #[serde(rename_all = "PascalCase")]
 struct GetAchievementOfTheWeekResponse {
     achievement: Achievement,
-    game: Game,
-    console: Console,
+    game: GameRef,
+    console: ConsoleRef,
 }
 
 struct RetroAchievementApi {
@@ -88,11 +102,16 @@ impl RetroAchievementApi {
         }
     }
 
-    async fn do_request<ResponseT: DeserializeOwned>(&self, method: &str) -> Result<ResponseT> {
+    async fn do_request<ResponseT: DeserializeOwned>(
+        &self,
+        method: &str,
+        params: Vec<(String, String)>,
+    ) -> Result<ResponseT> {
         let url = format!("{RETRO_ACHIEVEMENTS_API_ENDPOINT}/API_{method}.php");
         let response = self
             .client
             .get(&url)
+            .query(&params)
             .basic_auth(&self.user, Some(&self.token))
             .send()
             .await
@@ -114,6 +133,15 @@ impl RetroAchievementApi {
             .await
             .context("got error reading body from retro achievement API")?)
     }
+
+    async fn get_achievement_of_the_week(&self) -> Result<GetAchievementOfTheWeekResponse> {
+        self.do_request("GetAchievementOfTheWeek", vec![]).await
+    }
+
+    async fn get_game(&self, game: &GameRef) -> Result<Game> {
+        self.do_request("GetGame", vec![("i".into(), game.id.to_string())])
+            .await
+    }
 }
 
 struct DiscordClient {
@@ -129,10 +157,14 @@ impl DiscordClient {
         }
     }
 
-    async fn post(&self, user: &str, content: &str) -> Result<()> {
+    async fn post(&self, user: &str, content: &str, embeds: &serde_json::Value) -> Result<()> {
+        let payload = serde_json::json! ({
+            "username": &user,
+            "content": &content,
+            "embeds": &embeds
+        });
         let mut params = HashMap::new();
-        params.insert("username", user);
-        params.insert("content", content);
+        params.insert("payload_json", serde_json::to_string(&payload)?);
         self.client
             .post(&self.web_hook)
             .form(&params)
@@ -157,16 +189,38 @@ async fn main() -> Result<()> {
         &settings.retro_achievements_token,
     );
 
-    let aotw: GetAchievementOfTheWeekResponse =
-        ra_client.do_request("GetAchievementOfTheWeek").await?;
+    let aotw = ra_client.get_achievement_of_the_week().await?;
+    let game = ra_client.get_game(&aotw.game).await?;
 
     let discord_client = DiscordClient::new(http_client, &settings.discord_web_hook_url);
 
-    let post = format!(
-        "The current AOTW is {}, described as {}, from {} for the {}",
-        aotw.achievement.title, aotw.achievement.description, aotw.game.title, aotw.console.title
-    );
-    discord_client.post("AotwBot", &post).await?;
+    let embeds = serde_json::json! ([
+        {
+            "image": {
+                "url": format!(
+                    "{RETRO_ACHIEVEMENTS_MEDIA_URL}{}",
+                    aotw.achievement.badge_url
+                )
+            },
+            "fields": [
+                { "name": &aotw.achievement.title, "value": &aotw.achievement.description },
+            ]
+        },
+        {
+            "image": {
+                "url": format!(
+                    "{RETRO_ACHIEVEMENTS_MEDIA_URL}{}",
+                    game.game_icon
+                )
+            },
+            "fields": [
+                { "name": &aotw.game.title, "value": &aotw.console.title }
+            ]
+        },
+    ]);
+    discord_client
+        .post("AotwBot", "**Achievement of the Week**", &embeds)
+        .await?;
 
     Ok(())
 }
