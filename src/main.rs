@@ -209,7 +209,8 @@ async fn main() -> Result<()> {
             "fields": [
                 { "name": "", "value": &aotw.achievement.description },
             ],
-            "url": format!("{RETRO_ACHIEVEMENTS_WEB_URL}/achievement/{}", aotw.achievement.id)
+            "url": format!("{RETRO_ACHIEVEMENTS_WEB_URL}/achievement/{}", aotw.achievement.id),
+            "color": 0x2c97fa
         },
         {
             "title": &aotw.game.title,
@@ -222,7 +223,8 @@ async fn main() -> Result<()> {
             "fields": [
                 { "name": "", "value": &aotw.console.title },
             ],
-            "url": format!("{RETRO_ACHIEVEMENTS_WEB_URL}/game/{}", aotw.game.id)
+            "url": format!("{RETRO_ACHIEVEMENTS_WEB_URL}/game/{}", aotw.game.id),
+            "color": 0xcc9900,
         },
     ]);
     let post = format!(
