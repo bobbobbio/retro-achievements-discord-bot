@@ -1,6 +1,7 @@
 // Copyright 2026 Remi Bernotavicius
 
 use anyhow::{bail, Context as _, Result};
+use chrono::{DateTime, Local, Utc};
 use clap::Parser;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::collections::HashMap;
@@ -86,6 +87,7 @@ struct GetAchievementOfTheWeekResponse {
     achievement: Achievement,
     game: GameRef,
     console: ConsoleRef,
+    start_at: DateTime<Utc>,
 }
 
 struct RetroAchievementApi {
@@ -223,9 +225,11 @@ async fn main() -> Result<()> {
             "url": format!("{RETRO_ACHIEVEMENTS_WEB_URL}/game/{}", aotw.game.id)
         },
     ]);
-    discord_client
-        .post("AotwBot", "**Achievement of the Week**", &embeds)
-        .await?;
+    let post = format!(
+        "**Achievement of the Week for {}**",
+        aotw.start_at.with_timezone(&Local).format("%d/%m/%Y")
+    );
+    discord_client.post("AotwBot", &post, &embeds).await?;
 
     Ok(())
 }
